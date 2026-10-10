@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Trivia River</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #1a1f27;
+    --panel-2: #212836;
+    --text: #eef2f7;
+    --muted: #9aa7b8;
+    --border: #2c3644;
+    --accent: #d1112b;        /* rojo River */
+    --accent-ink: #ffffff;
+    --ok: #1f9d4d;
+    --ok-strong: #157a3a;
+    --bad: #d23b3b;
+    --bad-strong: #a82c2c;
+    --focus: #6aa8ff;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f5f8;
+      --panel: #ffffff;
+      --panel-2: #f0f2f6;
+      --text: #16202b;
+      --muted: #5a6675;
+      --border: #d9dfe7;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 64px;
+  }
+  .wrap { width: 100%; max-width: 720px; }
+
+  header.app {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  header.app h1 { font-size: 1.15rem; margin: 0; letter-spacing: .2px; }
+  header.app h1 .dot { color: var(--accent); }
+  .progress { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  /* Pantallas de texto (inicio, avisos, errores) */
+  .msg h2 { margin: 0 0 8px; font-size: 1.3rem; }
+  .msg p { margin: 0 0 12px; }
+  .msg .small { color: var(--muted); font-size: .88rem; }
+
+  /* Barra de tiempo */
+  .timer {
+    height: 10px; border-radius: 999px; background: var(--panel-2);
+    overflow: hidden; border: 1px solid var(--border); margin-bottom: 6px;
+  }
+  .timer > span {
+    display: block; height: 100%; width: 100%;
+    background: linear-gradient(90deg, var(--accent), #ff5a5a);
+  }
+  .timer-num { text-align: right; color: var(--muted); font-size: .82rem; margin-bottom: 16px; font-variant-numeric: tabular-nums; }
+  .timer-num.warn { color: var(--bad); font-weight: 700; }
+
+  .question { font-size: 1.2rem; font-weight: 650; margin: 4px 0 20px; }
+
+  .options { display: grid; gap: 12px; }
+  .opt {
+    display: flex; align-items: center; gap: 14px;
+    width: 100%; text-align: left;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 1.02rem;
+    cursor: pointer;
+    transition: border-color .12s, background .12s, transform .05s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--focus); }
+  .opt:active:not(:disabled) { transform: translateY(1px); }
+  .opt:disabled { cursor: default; }
+  .opt .k {
+    flex: 0 0 auto;
+    width: 30px; height: 30px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    font-weight: 700; font-size: .95rem;
+  }
+  .opt.correct {
+    background: color-mix(in srgb, var(--ok) 22%, var(--panel-2));
+    border-color: var(--ok);
+  }
+  .opt.correct .k { background: var(--ok-strong); color: #fff; border-color: var(--ok-strong); }
+  .opt.wrong {
+    background: color-mix(in srgb, var(--bad) 20%, var(--panel-2));
+    border-color: var(--bad);
+  }
+  .opt.wrong .k { background: var(--bad-strong); color: #fff; border-color: var(--bad-strong); }
+  @supports not (background: color-mix(in srgb, red, blue)) {
+    .opt.correct { background: #1f9d4d33; }
+    .opt.wrong { background: #d23b3b33; }
+  }
+
+  .verdict { margin: 16px 0 4px; font-weight: 700; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.bad { color: var(--bad); }
+  .verdict.time { color: var(--muted); }
+
+  /* Comentarios */
+  .annot { margin-top: 18px; border-top: 1px dashed var(--border); padding-top: 16px; }
+  textarea {
+    width: 100%;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font: inherit; resize: vertical; min-height: 72px;
+  }
+  textarea:focus, .opt:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .row { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; align-items: center; }
+  button.primary, button.ghost {
+    font: inherit; font-weight: 700; cursor: pointer;
+    border-radius: 10px; padding: 12px 20px; border: 2px solid transparent;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:disabled { opacity: .55; cursor: default; filter: none; }
+  button.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  button.ghost:hover { border-color: var(--focus); }
+
+  .hint { color: var(--muted); font-size: .85rem; margin-top: 14px; }
+  @media (hover: none) { .hint { display: none; } }
+  kbd {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font-size: .8rem;
+  }
+
+  /* Resultados finales */
+  .score { font-size: 1.5rem; font-weight: 800; margin: 4px 0 4px; }
+  .score small { display:block; font-size: .9rem; font-weight: 500; color: var(--muted); }
+  .res-list { display: grid; gap: 12px; margin-top: 16px; }
+  .res {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-left: 4px solid var(--border); border-radius: 10px; padding: 14px;
+  }
+  .res.ok { border-left-color: var(--ok); }
+  .res.bad { border-left-color: var(--bad); }
+  .res.time { border-left-color: var(--muted); }
+  .res .q { font-weight: 650; margin-bottom: 6px; }
+  .res .meta { font-size: .88rem; color: var(--muted); margin-bottom: 10px; }
+  .res .meta b.ok { color: var(--ok); }
+  .res .meta b.bad { color: var(--bad); }
+  .res .annot { margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 10px; }
+  .res textarea { background: var(--panel); }
+
+  .status { margin-top: 18px; font-size: .92rem; color: var(--muted); }
+  .status.ok { color: var(--ok); font-weight: 700; }
+  .status.bad { color: var(--bad); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <h1><span class="dot">&#9679;</span> <span id="titulo">Trivia River</span></h1>
+    <div class="progress" id="progress"></div>
+  </header>
+  <div id="app"><div class="card msg"><p>Cargando&hellip;</p></div></div>
+  <noscript><div class="card msg"><p>Este juego necesita JavaScript activado.</p></div></noscript>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   CONFIGURACIÓN
+   API_URL: dirección del Web App de Google Apps Script (ver LEEME_publicar.md).
+   Si queda vacía, el juego funciona en MODO DEMO con un banco local
+   (banco_demo.js) y no envía nada a ningún lado. Sirve para probarlo.
+   --------------------------------------------------------------------------- */
+window.TRIVIA_CONFIG = {
+  API_URL: "",
+  SEGUNDOS: 15,
+  TAMANO_DEMO: 20
+};
+</script>
+<script>
+(function () {
+  "use strict";
+
+  var CFG = window.TRIVIA_CONFIG || {};
+  var API_URL = String(CFG.API_URL || "").trim();
+  var params = new URLSearchParams(location.search);
+  var MODO_DEMO = !API_URL || params.get("demo") === "1";
+  var JUGADOR = (params.get("j") || "").trim();
+  var TIEMPO_MS = (Number(CFG.SEGUNDOS) > 0 ? Number(CFG.SEGUNDOS) : 15) * 1000;
+  var BLOQUEO_MS = 350; // ignora clics/teclas en los primeros ms tras mostrar una pregunta
+  var LETRAS = ["A", "B", "C", "D"];
+
+  var app = document.getElementById("app");
+  var progressEl = document.getElementById("progress");
+  var tituloEl = document.getElementById("titulo");
+
+  var PREGUNTAS = [];     // [{ n, pregunta, opciones:{A,B,C,D}, correcta }]
+  var sesion = { nombre: "", tanda: 0 };
+  var estado = { i: 0, fin: false, respuestas: [] };
+
+  var timerId = null;
+  var tDeadline = 0;
+  var gen = 0;            // generación de la pregunta activa; invalida timers viejos
+  var aceptaDesde = 0;    // timestamp a partir del cual se aceptan respuestas
+
+  function stopTimer() {
+    gen++;
+    if (timerId) { clearInterval(timerId); timerId = null; }
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function pantalla(titulo, html, extra) {
+    stopTimer();
+    progressEl.textContent = "";
+    app.innerHTML = '<div class="card msg"><h2>' + esc(titulo) + '</h2>' + html + (extra || "") + '</div>';
+  }
+
+  /* ------------------------------------------------------------------- API */
+
+  function fetchJSON(url, opts, intentos) {
+    var ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctl) ctl.abort(); }, 25000);
+    var o = opts || {};
+    if (ctl) o.signal = ctl.signal;
+    return fetch(url, o).then(function (r) {
+      clearTimeout(t);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).catch(function (err) {
+      clearTimeout(t);
+      if (intentos > 1) return fetchJSON(url, opts, intentos - 1);
+      throw err;
+    });
+  }
+
+  function api(accion, datos) {
+    if (MODO_DEMO) return demoApi(accion, datos || {});
+    if (accion === "tanda") {
+      return fetchJSON(API_URL + "?accion=tanda&j=" + encodeURIComponent(JUGADOR), {}, 2);
+    }
+    var cuerpo = { accion: accion, j: JUGADOR };
+    Object.keys(datos || {}).forEach(function (k) { cuerpo[k] = datos[k]; });
+    return fetchJSON(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // evita el preflight CORS
+      body: JSON.stringify(cuerpo)
+    }, 2);
+  }
+
+  /* --------------------------------------------------------------- MODO DEMO */
+
+  function cargarBancoDemo() {
+    return new Promise(function (resolve, reject) {
+      if (Array.isArray(window.BANCO_DEMO)) return resolve(window.BANCO_DEMO);
+      var s = document.createElement("script");
+      s.src = "banco_demo.js";
+      s.onload = function () { resolve(window.BANCO_DEMO || []); };
+      s.onerror = function () { reject(new Error("No se encontró banco_demo.js")); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function demoLeer() {
+    try { return JSON.parse(localStorage.getItem("trivia_demo_" + JUGADOR)) || { entregas: [] }; }
+    catch (e) { return { entregas: [] }; }
+  }
+  function demoGuardar(st) {
+    try { localStorage.setItem("trivia_demo_" + JUGADOR, JSON.stringify(st)); } catch (e) { /* sin almacenamiento */ }
+  }
+
+  function demoApi(accion, d) {
+    return cargarBancoDemo().then(function (banco) {
+      var st = demoLeer();
+      var ult = st.entregas[st.entregas.length - 1];
+      if (accion === "tanda") {
+        if (!ult || ult.estado === "completa") {
+          var vistas = {};
+          st.entregas.forEach(function (e) { e.numeros.forEach(function (n) { vistas[n] = true; }); });
+          var pool = banco.filter(function (q) { return !vistas[q.n]; });
+          if (!pool.length) return { ok: true, agotado: true, nombre: JUGADOR };
+          for (var i = pool.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+          }
+          var elegidas = pool.slice(0, CFG.TAMANO_DEMO || 20);
+          ult = { tanda: st.entregas.length + 1, numeros: elegidas.map(function (q) { return q.n; }), estado: "en curso", resp: {} };
+          st.entregas.push(ult);
+          demoGuardar(st);
+        }
+        var porN = {}; banco.forEach(function (q) { porN[q.n] = q; });
+        return {
+          ok: true, nombre: JUGADOR, tanda: ult.tanda,
+          retomada: Object.keys(ult.resp).length > 0,
+          restantes: banco.length - st.entregas.reduce(function (a, e) { return a + e.numeros.length; }, 0),
+          preguntas: ult.numeros.map(function (n) { return porN[n]; }),
+          respondidas: Object.keys(ult.resp).map(function (n) { return { n: Number(n), elegida: ult.resp[n].elegida, comentario: ult.resp[n].comentario }; })
+        };
+      }
+      if (!ult) return { ok: false, error: "sin_tanda" };
+      if (accion === "respuesta") {
+        ult.resp[d.n] = { elegida: d.elegida, comentario: d.comentario || "" };
+      } else if (accion === "fin") {
+        (d.respuestas || []).forEach(function (r) { ult.resp[r.n] = { elegida: r.elegida, comentario: r.comentario || "" }; });
+        ult.estado = "completa";
+      }
+      demoGuardar(st);
+      return { ok: true };
+    });
+  }
+
+  /* ------------------------------------------------------------------ INICIO */
+
+  function iniciar() {
+    if (!JUGADOR || !/^[A-Za-z0-9_-]{1,60}$/.test(JUGADOR)) {
+      pantalla("Falta tu enlace personal",
+        '<p>Este enlace no incluye tu identificador de jugador.</p>' +
+        '<p class="small">Abrí el enlace exacto que te llegó por email.</p>');
+      return;
+    }
+    pantalla("Cargando tu tanda…", '<p class="small">Un momento, por favor.</p>');
+    api("tanda").then(mostrarBienvenida).catch(function (err) {
+      pantalla("No pudimos conectarnos",
+        '<p>Hubo un problema al cargar las preguntas. Revisá tu conexión e intentá de nuevo.</p>' +
+        '<p class="small">' + esc(err && err.message ? err.message : "") + '</p>',
+        '<div class="row"><button class="primary" id="reintentar" type="button">Reintentar</button></div>');
+      document.getElementById("reintentar").addEventListener("click", iniciar);
+    });
+  }
+
+  function mostrarBienvenida(r) {
+    if (!r || !r.ok) {
+      var motivo = r && r.error === "jugador_desconocido"
+        ? "Tu enlace no corresponde a ningún jugador registrado. Pedile a Matías que te lo reenvíe."
+        : "El juego no está disponible en este momento. Intentá de nuevo más tarde.";
+      pantalla("Enlace no válido", '<p>' + esc(motivo) + '</p>');
+      return;
+    }
+    sesion.nombre = r.nombre || "";
+    if (r.agotado) {
+      pantalla("¡Gracias por jugar" + (sesion.nombre ? ", " + sesion.nombre : "") + "!",
+        '<p>Ya respondiste todas las preguntas disponibles por ahora. Cuando haya preguntas nuevas, te aviso.</p>');
+      return;
+    }
+
+    sesion.tanda = r.tanda;
+    PREGUNTAS = (r.preguntas || []).map(function (q) {
+      return {
+        n: Number(q.n),
+        pregunta: q.pregunta,
+        opciones: { A: q.A, B: q.B, C: q.C, D: q.D },
+        correcta: q.correcta
+      };
+    });
+    if (!PREGUNTAS.length) {
+      pantalla("Sin preguntas", '<p>No hay preguntas para mostrar en este momento.</p>');
+      return;
+    }
+    tituloEl.textContent = "Trivia River" + (sesion.tanda ? " — tanda " + sesion.tanda : "");
+
+    estado = {
+      i: 0,
+      fin: false,
+      respuestas: PREGUNTAS.map(function () {
+        return { elegida: null, correcta: null, timeout: false, comentarios: "", ms: null };
+      })
+    };
+
+    var prev = {};
+    (r.respondidas || []).forEach(function (x) { prev[x.n] = x; });
+    var primeraSinResponder = -1;
+    PREGUNTAS.forEach(function (q, idx) {
+      var p = prev[q.n];
+      var rr = estado.respuestas[idx];
+      if (p) {
+        if (p.elegida) { rr.elegida = p.elegida; rr.correcta = (p.elegida === q.correcta); }
+        else { rr.timeout = true; rr.correcta = false; }
+        rr.comentarios = p.comentario || "";
+      } else if (primeraSinResponder < 0) {
+        primeraSinResponder = idx;
+      }
+    });
+    var retomada = !!r.retomada && primeraSinResponder !== 0;
+    if (primeraSinResponder < 0) { estado.i = PREGUNTAS.length - 1; }
+    else { estado.i = primeraSinResponder; }
+
+    var html = '<p>Respondé ' + PREGUNTAS.length + ' preguntas sobre el Club Atlético River Plate. ' +
+               'Tenés ' + Math.round(TIEMPO_MS / 1000) + ' segundos para cada una.</p>';
+    if (retomada) {
+      html += '<p>Retomás tu tanda desde la pregunta ' + (estado.i + 1) + '.</p>';
+    }
+    if (r.aviso) html += '<p>' + esc(r.aviso) + '</p>';
+    html += '<p class="small">Se registran tus respuestas y los comentarios que dejes, solamente para armar ' +
+            'las estadísticas del juego y mejorar las preguntas.</p>' +
+            (MODO_DEMO ? '<p class="small"><b>Modo demo:</b> no se envía nada a ningún servidor.</p>' : '') +
+            '<div class="row"><button class="primary" id="empezar" type="button">' +
+            (retomada ? "Continuar" : "Empezar") + '</button></div>';
+    pantalla("Hola" + (sesion.nombre ? ", " + sesion.nombre : ""), html);
+    document.getElementById("empezar").addEventListener("click", function () {
+      if (primeraSinResponder < 0) { estado.fin = true; renderResultados(); }
+      else renderPregunta();
+    });
+  }
+
+  /* ------------------------------------------------------------------ QUIZ */
+
+  function renderPregunta() {
+    stopTimer();
+    if (estado.i < 0) estado.i = 0;
+    if (estado.i > PREGUNTAS.length - 1) { estado.fin = true; renderResultados(); return; }
+    estado.fin = false;
+    var idx = estado.i;
+    var q = PREGUNTAS[idx];
+    var r = estado.respuestas[idx];
+    progressEl.textContent = "Pregunta " + (idx + 1) + " / " + PREGUNTAS.length;
+
+    var html = '' +
+      '<div class="card">' +
+        '<div class="timer"><span id="bar"></span></div>' +
+        '<div class="timer-num" id="tnum">' + Math.round(TIEMPO_MS / 1000) + '</div>' +
+        '<div class="question">' + esc(q.pregunta) + '</div>' +
+        '<div class="options" id="opts">';
+
+    LETRAS.forEach(function (k) {
+      html += '<button class="opt" data-k="' + k + '" type="button">' +
+                '<span class="k">' + k + '</span>' +
+                '<span class="t">' + esc(q.opciones[k]) + '</span>' +
+              '</button>';
+    });
+
+    html += '</div>' +
+        '<div id="postArea"></div>' +
+        '<div class="hint">Respondé con el mouse o con el teclado: <kbd>A</kbd><kbd>B</kbd><kbd>C</kbd><kbd>D</kbd> o <kbd>1</kbd>&ndash;<kbd>4</kbd></div>' +
+      '</div>';
+
+    app.innerHTML = html;
+
+    var idxAlRenderizar = idx;
+    var opts = Array.prototype.slice.call(app.querySelectorAll(".opt"));
+    opts.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        resolver(btn.getAttribute("data-k"), idxAlRenderizar);
+      });
+    });
+
+    if (r.elegida !== null || r.timeout) {
+      revelar();
+    } else {
+      aceptaDesde = Date.now() + BLOQUEO_MS;
+      arrancarTimer(idx);
+    }
+  }
+
+  function arrancarTimer(idxPregunta) {
+    var bar = document.getElementById("bar");
+    var tnum = document.getElementById("tnum");
+    var miGen = gen;
+    tDeadline = Date.now() + TIEMPO_MS;
+
+    function paso() {
+      if (miGen !== gen) { clearInterval(timerId); return; } // pregunta ya cambiada
+      var restante = Math.max(0, tDeadline - Date.now());
+      if (bar) bar.style.width = ((restante / TIEMPO_MS) * 100).toFixed(2) + "%";
+      if (tnum) {
+        var seg = Math.ceil(restante / 1000);
+        tnum.textContent = seg > 0 ? seg : 0;
+        tnum.classList.toggle("warn", seg <= 5);
+      }
+      if (restante <= 0) {
+        clearInterval(timerId);
+        timerId = null;
+        resolver(null, idxPregunta);
+      }
+    }
+
+    if (timerId) clearInterval(timerId);
+    paso();
+    timerId = setInterval(paso, 100);
+  }
+
+  function resolver(k, idxPregunta) {
+    // Ignora eventos que llegan tarde desde una pregunta anterior
+    if (idxPregunta !== undefined && idxPregunta !== estado.i) return;
+    // Ignora clics/teclas fantasma justo después de cambiar de pregunta
+    if (k !== null && Date.now() < aceptaDesde) return;
+    var r = estado.respuestas[estado.i];
+    if (r.elegida !== null || r.timeout) return;
+    var restante = Math.max(0, tDeadline - Date.now());
+    stopTimer();
+    r.ms = Math.min(TIEMPO_MS, Math.max(0, TIEMPO_MS - restante));
+    if (k === null) {
+      r.timeout = true;
+      r.elegida = null;
+      r.correcta = false;
+    } else {
+      r.elegida = k;
+      r.correcta = (k === PREGUNTAS[estado.i].correcta);
+    }
+    guardarRespuesta(estado.i);   // se registra enseguida, por si cierra la pestaña
+    revelar();
+  }
+
+  function datosRespuesta(idx) {
+    var r = estado.respuestas[idx];
+    return {
+      n: PREGUNTAS[idx].n,
+      elegida: r.timeout ? "" : (r.elegida || ""),
+      ms: r.ms,
+      comentario: r.comentarios || ""
+    };
+  }
+
+  function guardarRespuesta(idx) {
+    var d = datosRespuesta(idx);
+    d.tanda = sesion.tanda;
+    api("respuesta", d).catch(function () { /* se reenvía completo al terminar */ });
+  }
+
+  function revelar() {
+    var idx = estado.i;
+    var q = PREGUNTAS[idx];
+    var r = estado.respuestas[idx];
+
+    var bar = document.getElementById("bar");
+    if (bar) bar.style.width = "0%";
+    var tnum = document.getElementById("tnum");
+    if (tnum) { tnum.textContent = r.timeout ? "Tiempo agotado" : ""; tnum.classList.remove("warn"); }
+
+    Array.prototype.slice.call(app.querySelectorAll(".opt")).forEach(function (btn) {
+      btn.disabled = true;
+      var k = btn.getAttribute("data-k");
+      if (k === q.correcta) btn.classList.add("correct");
+      if (r.elegida && k === r.elegida && !r.correcta) btn.classList.add("wrong");
+    });
+
+    var verdict, cls;
+    if (r.timeout) { verdict = "Se acabó el tiempo. La respuesta correcta era " + q.correcta + ")."; cls = "time"; }
+    else if (r.correcta) { verdict = "&#10003; &iexcl;Correcto!"; cls = "ok"; }
+    else { verdict = "&#10007; Incorrecto. La respuesta correcta era " + q.correcta + ")."; cls = "bad"; }
+
+    var esUltima = (idx === PREGUNTAS.length - 1);
+
+    var html = '' +
+      '<div class="verdict ' + cls + '">' + verdict + '</div>' +
+      '<div class="annot">' +
+        '<textarea id="coment" placeholder="Comentarios (opcional): algo que corregir, una duda, una sugerencia...">' + esc(r.comentarios) + '</textarea>' +
+      '</div>' +
+      '<div class="row">' +
+        (idx > 0 ? '<button class="ghost" id="prev" type="button">&larr; Anterior</button>' : '') +
+        '<button class="primary" id="next" type="button">' +
+          (esUltima ? "Ver resultados" : "Siguiente &rarr;") +
+        '</button>' +
+      '</div>';
+
+    document.getElementById("postArea").innerHTML = html;
+
+    document.getElementById("coment").addEventListener("input", function (e) {
+      r.comentarios = e.target.value;
+    });
+
+    var navegando = false;
+    var prev = document.getElementById("prev");
+    if (prev) prev.addEventListener("click", function () {
+      if (navegando || estado.i <= 0) return;
+      navegando = true;
+      guardarAnot();
+      estado.i--; renderPregunta();
+    });
+    document.getElementById("next").addEventListener("click", function () {
+      if (navegando) return;
+      navegando = true;
+      guardarAnot();
+      if (esUltima) { estado.fin = true; renderResultados(); }
+      else { estado.i++; renderPregunta(); }
+    });
+  }
+
+  function guardarAnot() {
+    var r = estado.respuestas[estado.i];
+    var c = document.getElementById("coment");
+    if (!c) return;
+    var cambio = (r.comentarios !== c.value);
+    r.comentarios = c.value;
+    if (cambio || r.comentarios) guardarRespuesta(estado.i);
+  }
+
+  /* ------------------------------------------------------------- RESULTADOS */
+
+  function renderResultados() {
+    stopTimer();
+    progressEl.textContent = "Resultados";
+
+    var aciertos = estado.respuestas.filter(function (r) { return r.correcta; }).length;
+
+    var html = '' +
+      '<div class="card">' +
+        '<div class="score">' + aciertos + ' / ' + PREGUNTAS.length +
+          '<small>respuestas correctas</small></div>' +
+        '<div class="status" id="estadoEnvio">Guardando tus resultados&hellip;</div>' +
+        '<div class="row">' +
+          '<button class="primary" id="otra" type="button" disabled>Jugar otra tanda</button>' +
+        '</div>' +
+        '<div class="res-list">';
+
+    PREGUNTAS.forEach(function (q, idx) {
+      var r = estado.respuestas[idx];
+      var cls = r.correcta ? "ok" : (r.timeout ? "time" : "bad");
+      var tuya = r.timeout ? "&mdash; (sin responder)" :
+                 (r.elegida + ") " + esc(q.opciones[r.elegida]));
+      var tuyaCls = r.correcta ? "ok" : "bad";
+
+      html += '<div class="res ' + cls + '">' +
+        '<div class="q">' + (idx + 1) + '. ' + esc(q.pregunta) + '</div>' +
+        '<div class="meta">' +
+          'Correcta: <b class="ok">' + q.correcta + ') ' + esc(q.opciones[q.correcta]) + '</b><br>' +
+          'Tu respuesta: <b class="' + tuyaCls + '">' + tuya + '</b>' +
+        '</div>' +
+        '<div class="annot">' +
+          '<textarea data-idx="' + idx + '" placeholder="Comentarios (opcional)">' + esc(r.comentarios) + '</textarea>' +
+        '</div>' +
+      '</div>';
+    });
+
+    html += '</div>' +
+      '<div class="row">' +
+        '<button class="ghost" id="guardarCom" type="button">Guardar mis comentarios</button>' +
+      '</div>' +
+      '<p class="hint">Si dejaste o cambiaste comentarios, tocá &laquo;Guardar mis comentarios&raquo;. &iexcl;Gracias por jugar!</p>' +
+    '</div>';
+
+    app.innerHTML = html;
+
+    Array.prototype.slice.call(app.querySelectorAll('textarea[data-idx]')).forEach(function (ta) {
+      ta.addEventListener("input", function () {
+        estado.respuestas[+ta.getAttribute("data-idx")].comentarios = ta.value;
+      });
+    });
+    document.getElementById("guardarCom").addEventListener("click", enviarFin);
+    document.getElementById("otra").addEventListener("click", function () { location.reload(); });
+
+    enviarFin();
+  }
+
+  function enviarFin() {
+    var st = document.getElementById("estadoEnvio");
+    var otra = document.getElementById("otra");
+    if (st) { st.className = "status"; st.textContent = "Guardando tus resultados…"; }
+    var datos = {
+      tanda: sesion.tanda,
+      respuestas: PREGUNTAS.map(function (_, idx) { return datosRespuesta(idx); })
+    };
+    api("fin", datos).then(function (r) {
+      if (!r || !r.ok) throw new Error(r && r.error ? r.error : "respuesta inválida");
+      if (st) { st.className = "status ok"; st.textContent = "✓ Resultados guardados. ¡Gracias!"; }
+      if (otra) otra.disabled = false;
+    }).catch(function () {
+      if (st) {
+        st.className = "status bad";
+        st.textContent = "No se pudieron guardar los resultados. Revisá tu conexión y tocá «Guardar mis comentarios» para reintentar.";
+      }
+    });
+  }
+
+  /* -------------------------------------------------------------- TECLADO */
+
+  document.addEventListener("keydown", function (e) {
+    if (estado.fin || !PREGUNTAS.length || !document.getElementById("opts")) return;
+    var r = estado.respuestas[estado.i];
+    if (!r) return;
+    var yaRespondio = (r.elegida !== null || r.timeout);
+    var key = e.key.toUpperCase();
+
+    if (!yaRespondio) {
+      var map = { "1": "A", "2": "B", "3": "C", "4": "D", "A": "A", "B": "B", "C": "C", "D": "D" };
+      if (map[key]) { e.preventDefault(); resolver(map[key], estado.i); }
+    } else if (e.key === "Enter") {
+      var next = document.getElementById("next");
+      if (next && document.activeElement && document.activeElement.tagName === "TEXTAREA") return;
+      if (next) { e.preventDefault(); next.click(); }
+    }
+  });
+
+  /* ---------------------------------------------------------------- INIT */
+
+  iniciar();
+})();
+</script>
+</body>
+</html>
